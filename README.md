@@ -27,7 +27,9 @@ Both sign/verify with the **same shared `JWT_SECRET`** (HS256), so tokens issued
 - **Java 21**, Maven (fat jar via `maven-shade-plugin`)
 - **jjwt 0.13.0** (HS256) — same library/version as the main app
 - **PostgreSQL JDBC** — lookup on `clients.document`
-- **AWS Lambda + API Gateway (REST)** — provisioned with **Terraform**
+- **AWS Lambda** (functions) — provisioned with **Terraform**. The API Gateway that
+  fronts these functions lives in the **`os-management-gateway`** repo and references
+  them via `terraform_remote_state`.
 - **AWS Secrets Manager** — managed store for `JWT_SECRET` and DB credentials
 - **GitHub Actions** — CI (test + `terraform validate`) and CD (`develop`→homolog, `main`→prod)
 
@@ -135,7 +137,7 @@ The JWT payload:
 
 ### Postman / Bruno
 
-The platform API collection lives in the main `os-management` repo under `bruno/os-management-api` (`01 - Auth`). Point the `baseUrl` environment variable at the API Gateway stage URL from the Terraform `auth_endpoint` output.
+The platform API collection lives in the main `os-management` repo under `bruno/os-management-api` (`01 - Auth`). Point the `baseUrl` environment variable at the API Gateway stage URL (the `auth_endpoint` output of the **`os-management-gateway`** repo).
 
 ---
 
@@ -162,7 +164,7 @@ terraform init \
 terraform apply
 ```
 
-Key outputs: `auth_endpoint`, `api_base_url`.
+Key outputs: `issuer_invoke_arn`, `authorizer_invoke_arn` (consumed by the gateway repo).
 
 ### Environment variables consumed by the functions
 
