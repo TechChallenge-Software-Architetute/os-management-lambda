@@ -192,9 +192,9 @@ The issuer Lambda attaches to the EKS **node security group**, which is the SG t
 
 Repo **variables**: `TF_STATE_BUCKET`, `AWS_REGION`.
 
-Repo **secrets**: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `PROTECTED_BACKEND_URL`.
+Repo **secrets**: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`.
 
-> `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `TF_STATE_BUCKET`, `AWS_REGION`, and the AWS keys use the **same names and values** as os-management — reuse them. `PROTECTED_BACKEND_URL` is the only genuinely new value (the app's public/ingress URL, since no os-management output exposes it). Subnets, security group, and DB URL are no longer needed as secrets — they come from remote state.
+> `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `TF_STATE_BUCKET`, `AWS_REGION`, and the AWS keys use the **same names and values** as os-management — reuse them. Subnets, security group, and DB URL are not needed as secrets — they come from remote state. The backend URL (`ORIGIN_URL`) now lives in the **`os-management-gateway`** repo, not here.
 
 ---
 

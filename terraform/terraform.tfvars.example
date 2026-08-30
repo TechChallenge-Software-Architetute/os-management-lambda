@@ -17,10 +17,6 @@ db_password = "change-me"
 jwt_secret        = "change-me-to-the-shared-secret"
 jwt_expiration_ms = 86400000
 
-# Protected backend (the app on Kubernetes). No os-management output exposes this,
-# so set it explicitly (e.g. the ingress/LoadBalancer hostname).
-protected_backend_url = "https://app.example.com"
-
 # Optional overrides — leave unset to source from os-management state:
 # db_url                 = "jdbc:postgresql://host:5432/workshop"
 # vpc_subnet_ids         = ["subnet-aaaa", "subnet-bbbb"]

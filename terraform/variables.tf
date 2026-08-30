@@ -103,8 +103,4 @@ variable "vpc_security_group_ids" {
 }
 
 # --- Protected backend (target of the authorized routes) ------------------
-
-variable "protected_backend_url" {
-  description = "Base HTTP(S) URL of the protected backend API (e.g. the app running on Kubernetes)."
-  type        = string
-}
+# (Removed: the API Gateway and its backend proxy now live in os-management-gateway.)
