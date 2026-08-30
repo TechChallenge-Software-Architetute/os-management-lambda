@@ -178,11 +178,21 @@ Key outputs: `auth_endpoint`, `api_base_url`.
 
 - **Branch protection:** `main` (prod) and `develop` (homolog) — no direct commits; merges via Pull Request.
 - **CI** (`.github/workflows/ci.yml`): on PRs to `develop`/`main` and on `feature/**` pushes — runs Java tests and `terraform fmt`/`validate`.
-- **CD** (`.github/workflows/cd.yml`): on push to `develop` → **homolog**, on push to `main` → **prod** — packages the jar and runs `terraform apply` against the matching environment.
+- **CD** (`.github/workflows/cd.yml`): on push to `develop` → **homolog**, on push to `main` → **prod** — packages the jar and runs `terraform apply`. Branch → environment is derived in the workflow (no GitHub Environments needed), matching the os-management flat repo-secret convention.
 
-Required GitHub secrets (per environment): `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `TF_STATE_BUCKET`, `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `VPC_SUBNET_IDS`, `VPC_SECURITY_GROUP_IDS`, `PROTECTED_BACKEND_URL`.
+### Shared infrastructure via remote state
 
-> `VPC_SUBNET_IDS` and `VPC_SECURITY_GROUP_IDS` are Terraform lists — store them as JSON, e.g. `["subnet-a","subnet-b"]`.
+VPC subnets, the EKS node security group, and the RDS JDBC URL are **read from the os-management EKS Terraform state** (`terraform_remote_state`), so they are **not** manual inputs here. This requires os-management to be deployed in EKS mode (`USE_EKS=true`) and to expose these root outputs: `private_subnet_ids`, `node_security_group_id`, `rds_jdbc_url`.
+
+The issuer Lambda attaches to the EKS **node security group**, which is the SG the RDS instance already allows on port 5432.
+
+### Required GitHub configuration (reused from os-management)
+
+Repo **variables**: `TF_STATE_BUCKET`, `AWS_REGION`.
+
+Repo **secrets**: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `PROTECTED_BACKEND_URL`.
+
+> `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `TF_STATE_BUCKET`, `AWS_REGION`, and the AWS keys use the **same names and values** as os-management — reuse them. `PROTECTED_BACKEND_URL` is the only genuinely new value (the app's public/ingress URL, since no os-management output exposes it). Subnets, security group, and DB URL are no longer needed as secrets — they come from remote state.
 
 ---
 

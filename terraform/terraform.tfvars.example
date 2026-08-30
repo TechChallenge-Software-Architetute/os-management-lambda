@@ -4,18 +4,24 @@
 aws_region  = "us-east-1"
 environment = "homolog"
 
-# Database (managed PostgreSQL)
-db_url      = "jdbc:postgresql://your-db-host:5432/workshop"
-db_username = "user"
+# Shared os-management state — VPC subnets, node SG and RDS URL are read from here,
+# so you do NOT need to set db_url / vpc_subnet_ids / vpc_security_group_ids manually.
+os_management_state_bucket = "os-management-tfstate"
+# os_management_state_key  = "eks/terraform.tfstate"  # default
+
+# Database credentials (not exposed as os-management outputs, so still required)
+db_user     = "user"
 db_password = "change-me"
 
 # JWT — must match the shared platform secret so tokens verify everywhere
 jwt_secret        = "change-me-to-the-shared-secret"
 jwt_expiration_ms = 86400000
 
-# VPC so the issuer Lambda can reach the database
-vpc_subnet_ids         = ["subnet-aaaa", "subnet-bbbb"]
-vpc_security_group_ids = ["sg-aaaa"]
-
-# Protected backend (the app running on Kubernetes)
+# Protected backend (the app on Kubernetes). No os-management output exposes this,
+# so set it explicitly (e.g. the ingress/LoadBalancer hostname).
 protected_backend_url = "https://app.example.com"
+
+# Optional overrides — leave unset to source from os-management state:
+# db_url                 = "jdbc:postgresql://host:5432/workshop"
+# vpc_subnet_ids         = ["subnet-aaaa", "subnet-bbbb"]
+# vpc_security_group_ids = ["sg-aaaa"]

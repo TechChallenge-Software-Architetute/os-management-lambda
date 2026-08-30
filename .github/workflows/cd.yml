@@ -9,19 +9,20 @@ jobs:
   deploy:
     name: Package & Deploy
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'main' && 'prod' || 'homolog' }}
     defaults:
       run:
         working-directory: terraform
     env:
+      # develop -> homolog, main -> prod
       TF_VAR_environment: ${{ github.ref_name == 'main' && 'prod' || 'homolog' }}
-      TF_VAR_db_url: ${{ secrets.DB_URL }}
-      TF_VAR_db_username: ${{ secrets.DB_USERNAME }}
+      # Secrets reused from os-management conventions (DB_USER, DB_PASSWORD, JWT_SECRET)
+      TF_VAR_db_user: ${{ secrets.DB_USER }}
       TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
       TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
-      TF_VAR_vpc_subnet_ids: ${{ secrets.VPC_SUBNET_IDS }}
-      TF_VAR_vpc_security_group_ids: ${{ secrets.VPC_SECURITY_GROUP_IDS }}
       TF_VAR_protected_backend_url: ${{ secrets.PROTECTED_BACKEND_URL }}
+      # Shared state bucket (repo variable, same as os-management)
+      TF_VAR_os_management_state_bucket: ${{ vars.TF_STATE_BUCKET }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -41,7 +42,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -50,9 +51,9 @@ jobs:
       - name: Terraform init
         run: |
           terraform init \
-            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
             -backend-config="key=lambda/${TF_VAR_environment}/terraform.tfstate" \
-            -backend-config="region=${{ secrets.AWS_REGION }}"
+            -backend-config="region=${{ env.AWS_REGION }}"
 
       - name: Terraform apply
-        run: terraform apply -auto-approve -var="aws_region=${{ secrets.AWS_REGION }}"
+        run: terraform apply -auto-approve -var="aws_region=${{ env.AWS_REGION }}"

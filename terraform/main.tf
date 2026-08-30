@@ -28,8 +28,8 @@ resource "aws_secretsmanager_secret" "db" {
 resource "aws_secretsmanager_secret_version" "db" {
   secret_id = aws_secretsmanager_secret.db.id
   secret_string = jsonencode({
-    url      = var.db_url
-    username = var.db_username
+    url      = local.db_url
+    username = var.db_user
     password = var.db_password
   })
 }
@@ -116,14 +116,14 @@ resource "aws_lambda_function" "issuer" {
   timeout          = var.lambda_timeout_seconds
 
   vpc_config {
-    subnet_ids         = var.vpc_subnet_ids
-    security_group_ids = var.vpc_security_group_ids
+    subnet_ids         = local.subnet_ids
+    security_group_ids = local.security_group_ids
   }
 
   environment {
     variables = {
-      DB_URL         = var.db_url
-      DB_USERNAME    = var.db_username
+      DB_URL         = local.db_url
+      DB_USERNAME    = var.db_user
       DB_PASSWORD    = var.db_password
       JWT_SECRET     = var.jwt_secret
       JWT_EXPIRATION = tostring(var.jwt_expiration_ms)
