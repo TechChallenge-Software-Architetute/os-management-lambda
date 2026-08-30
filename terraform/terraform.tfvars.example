@@ -1,0 +1,21 @@
+# Copy to terraform.tfvars (or pass via CI) and fill in real values.
+# Do NOT commit real secrets.
+
+aws_region  = "us-east-1"
+environment = "homolog"
+
+# Database (managed PostgreSQL)
+db_url      = "jdbc:postgresql://your-db-host:5432/workshop"
+db_username = "user"
+db_password = "change-me"
+
+# JWT — must match the shared platform secret so tokens verify everywhere
+jwt_secret        = "change-me-to-the-shared-secret"
+jwt_expiration_ms = 86400000
+
+# VPC so the issuer Lambda can reach the database
+vpc_subnet_ids         = ["subnet-aaaa", "subnet-bbbb"]
+vpc_security_group_ids = ["sg-aaaa"]
+
+# Protected backend (the app running on Kubernetes)
+protected_backend_url = "https://app.example.com"
