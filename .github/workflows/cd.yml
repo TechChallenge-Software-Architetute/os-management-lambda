@@ -7,7 +7,7 @@ on:
 # develop -> homolog, main -> prod
 jobs:
   deploy:
-    name: Package & Deploy
+    name: Package & Deploy (Lambda + API Gateway)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -19,6 +19,10 @@ jobs:
       TF_VAR_db_user: ${{ secrets.DB_USER }}
       TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
       TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+      # Backend URL for the API Gateway proxy. Leave the secret unset to read it
+      # from SSM (/os-management/<env>/app/origin_url) published by the app pipeline.
+      TF_VAR_origin_url: ${{ secrets.ORIGIN_URL }}
+      TF_VAR_origin_verify_token: ${{ secrets.ORIGIN_VERIFY_TOKEN }}
       # Shared state bucket (repo variable, same as os-management)
       TF_VAR_os_management_state_bucket: ${{ vars.TF_STATE_BUCKET }}
       AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
@@ -55,4 +59,12 @@ jobs:
             -backend-config="region=${{ env.AWS_REGION }}"
 
       - name: Terraform apply
-        run: terraform apply -auto-approve -var="aws_region=${{ env.AWS_REGION }}"
+        run: terraform apply -auto-approve -input=false -var="aws_region=${{ env.AWS_REGION }}"
+
+      - name: Publish API URL to the job summary
+        run: |
+          echo "### API Gateway (${TF_VAR_environment})" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          terraform output -raw api_base_url >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

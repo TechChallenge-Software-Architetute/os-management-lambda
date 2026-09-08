@@ -25,7 +25,7 @@ provider "aws" {
   default_tags {
     tags = {
       Project     = "os-management"
-      Component   = "auth-lambda"
+      Component   = "auth-edge" # auth Lambdas + API Gateway
       ManagedBy   = "Terraform"
       Environment = var.environment
     }

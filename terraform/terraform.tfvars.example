@@ -13,11 +13,22 @@ os_management_state_bucket = "os-management-tfstate"
 db_user     = "user"
 db_password = "change-me"
 
-# JWT — must match the shared platform secret so tokens verify everywhere
+# JWT — must match the shared platform secret so tokens verify everywhere.
+# iss/aud default to os-management-auth / os-management-api; override only if needed.
 jwt_secret        = "change-me-to-the-shared-secret"
-jwt_expiration_ms = 86400000
+jwt_expiration_ms = 3600000
+# jwt_issuer      = "os-management-auth"
+# jwt_audience    = "os-management-api"
+
+# API Gateway -> backend on Kubernetes.
+# Preferred: leave empty and let the app/infra pipeline publish the URL to
+#   /os-management/<env>/app/origin_url  (SSM). Otherwise set it explicitly:
+# origin_url          = "https://app.example.com"
+# origin_verify_token = "shared-secret-header-value"   # optional; app must check x-origin-verify
 
 # Optional overrides — leave unset to source from os-management state:
 # db_url                 = "jdbc:postgresql://host:5432/workshop"
 # vpc_subnet_ids         = ["subnet-aaaa", "subnet-bbbb"]
 # vpc_security_group_ids = ["sg-aaaa"]
+
+# Throttling / cache defaults are sane for a demo; override in variables.tf if needed.

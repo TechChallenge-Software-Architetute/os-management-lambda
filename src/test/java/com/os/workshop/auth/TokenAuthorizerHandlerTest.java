@@ -1,18 +1,17 @@
 package com.os.workshop.auth;
 
-import com.amazonaws.services.lambda.runtime.events.APIGatewayCustomAuthorizerEvent;
-import com.amazonaws.services.lambda.runtime.events.IamPolicyResponse;
+import com.amazonaws.services.lambda.runtime.events.APIGatewayV2CustomAuthorizerEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class TokenAuthorizerHandlerTest {
 
     private static final String SECRET = "test-secret-that-is-long-enough-for-hs256-signing!!";
-    private static final String METHOD_ARN =
-            "arn:aws:execute-api:us-east-1:123456789012:abc123/prod/GET/orders";
 
     private JwtIssuer issuer;
     private TokenAuthorizerHandler handler;
@@ -23,61 +22,69 @@ class TokenAuthorizerHandlerTest {
         handler = new TokenAuthorizerHandler(new JwtVerifier(SECRET));
     }
 
-    private IamPolicyResponse invoke(String authorizationToken) {
-        APIGatewayCustomAuthorizerEvent event = new APIGatewayCustomAuthorizerEvent();
-        event.setAuthorizationToken(authorizationToken);
-        event.setMethodArn(METHOD_ARN);
-        return handler.handleRequest(event, null);
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> invoke(String authorizationHeader) {
+        APIGatewayV2CustomAuthorizerEvent event = new APIGatewayV2CustomAuthorizerEvent();
+        if (authorizationHeader != null) {
+            event.setIdentitySource(List.of(authorizationHeader));
+            event.setHeaders(Map.of("authorization", authorizationHeader));
+        }
+        return (Map<String, Object>) (Map<?, ?>) handler.handleRequest(event, null);
     }
 
     @Test
-    void allowsValidTokenAndExposesClaims() {
+    @SuppressWarnings("unchecked")
+    void allowsValidTokenAndExposesClaimsInContext() {
         String token = issuer.issue("52998224725", new Client(7L, "JOAO", true));
 
-        IamPolicyResponse response = invoke("Bearer " + token);
+        Map<String, Object> response = invoke("Bearer " + token);
 
-        assertThat(response.getPrincipalId()).isEqualTo("52998224725");
-        assertThat(response.getContext())
+        assertThat(response).containsEntry("isAuthorized", true);
+        Map<String, Object> context = (Map<String, Object>) response.get("context");
+        assertThat(context)
+                .containsEntry("cpf", "52998224725")
                 .containsEntry("clientId", "7")
-                .containsEntry("name", "JOAO")
-                .containsEntry("cpf", "52998224725");
-        // Policy document carries a single Allow statement for the requested method ARN.
-        assertThat(response.getPolicyDocument())
-                .containsEntry("Version", IamPolicyResponse.VERSION_2012_10_17);
-        Object[] statements = (Object[]) response.getPolicyDocument().get("Statement");
-        assertThat(statements).hasSize(1);
+                .containsEntry("name", "JOAO");
     }
 
     @Test
     void acceptsTokenWithoutBearerPrefix() {
         String token = issuer.issue("52998224725", new Client(7L, "JOAO", true));
-        assertThat(invoke(token).getPrincipalId()).isEqualTo("52998224725");
+        assertThat(invoke(token)).containsEntry("isAuthorized", true);
     }
 
     @Test
-    void rejectsMissingToken() {
-        assertThatThrownBy(() -> invoke(null))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("Unauthorized");
+    void deniesMissingToken() {
+        assertThat(invoke(null)).containsEntry("isAuthorized", false);
     }
 
     @Test
-    void rejectsTokenSignedWithDifferentSecret() {
+    void deniesTokenSignedWithDifferentSecret() {
         String foreign = new JwtIssuer("a-completely-different-secret-value-still-long!!", 86_400_000L)
                 .issue("52998224725", new Client(7L, "JOAO", true));
 
-        assertThatThrownBy(() -> invoke("Bearer " + foreign))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("Unauthorized");
+        assertThat(invoke("Bearer " + foreign)).containsEntry("isAuthorized", false);
     }
 
     @Test
-    void rejectsExpiredToken() {
+    void deniesExpiredToken() {
         String expired = new JwtIssuer(SECRET, -1000L)
                 .issue("52998224725", new Client(7L, "JOAO", true));
 
-        assertThatThrownBy(() -> invoke("Bearer " + expired))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("Unauthorized");
+        assertThat(invoke("Bearer " + expired)).containsEntry("isAuthorized", false);
+    }
+
+    @Test
+    void deniesTokenWithWrongIssuer() {
+        JwtIssuer foreignIssuer = new JwtIssuer(SECRET, 86_400_000L, "someone-else", null);
+        TokenAuthorizerHandler strict =
+                new TokenAuthorizerHandler(new JwtVerifier(SECRET, "os-management-auth", null));
+
+        String token = foreignIssuer.issue("52998224725", new Client(7L, "JOAO", true));
+
+        APIGatewayV2CustomAuthorizerEvent event = new APIGatewayV2CustomAuthorizerEvent();
+        event.setIdentitySource(List.of("Bearer " + token));
+
+        assertThat(strict.handleRequest(event, null)).containsEntry("isAuthorized", false);
     }
 }
