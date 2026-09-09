@@ -43,39 +43,59 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
         try {
             request = MAPPER.readValue(Optional.ofNullable(event.getBody()).orElse("{}"), AuthRequest.class);
         } catch (Exception e) {
-            return error(400, "Invalid request body");
+            return denied(context, 400, "Invalid request body", "invalid_body", null);
         }
 
         if (request.cpf() == null || request.cpf().isBlank()) {
-            return error(400, "CPF is required");
+            return denied(context, 400, "CPF is required", "missing_cpf", null);
         }
 
         Cpf cpf;
         try {
             cpf = new Cpf(request.cpf());
         } catch (IllegalArgumentException e) {
-            return error(400, "Invalid CPF");
+            return denied(context, 400, "Invalid CPF", "invalid_cpf", null);
         }
 
         Optional<Client> found;
         try {
             found = clientRepository.findByDocument(cpf.getValue());
         } catch (ClientRepository.RepositoryException e) {
+            JsonLog.warn(context, "auth.error", Map.of(
+                    "document", JsonLog.maskDocument(cpf.getValue()), "reason", "repository_failure"));
             return error(500, "Internal error");
         }
 
         if (found.isEmpty()) {
-            return error(404, "Client not found");
+            return denied(context, 404, "Client not found", "client_not_found",
+                    JsonLog.maskDocument(cpf.getValue()));
         }
 
         Client client = found.get();
         if (!client.active()) {
-            return error(403, "Client is inactive");
+            return denied(context, 403, "Client is inactive", "client_inactive",
+                    JsonLog.maskDocument(cpf.getValue()));
         }
 
         String token = jwtIssuer.issue(cpf.getValue(), client);
         AuthResponse response = AuthResponse.of(token, jwtIssuer.getExpirationMillis(), client);
+        JsonLog.info(context, "auth.issued", Map.of(
+                "document", JsonLog.maskDocument(cpf.getValue()),
+                "clientId", client.id(),
+                "status", 200));
         return json(200, response);
+    }
+
+    private APIGatewayProxyResponseEvent denied(Context context, int status, String message,
+                                                String reason, String maskedDocument) {
+        Map<String, Object> fields = new java.util.HashMap<>();
+        fields.put("reason", reason);
+        fields.put("status", status);
+        if (maskedDocument != null) {
+            fields.put("document", maskedDocument);
+        }
+        JsonLog.info(context, "auth.denied", fields);
+        return error(status, message);
     }
 
     private APIGatewayProxyResponseEvent json(int status, Object body) {

@@ -37,6 +37,7 @@ public class TokenAuthorizerHandler
     public IamPolicyResponse handleRequest(APIGatewayCustomAuthorizerEvent event, Context context) {
         String token = stripBearer(event.getAuthorizationToken());
         if (token == null) {
+            JsonLog.warn(context, "authorize.denied", Map.of("reason", "missing_token"));
             throw new RuntimeException("Unauthorized");
         }
 
@@ -45,6 +46,7 @@ public class TokenAuthorizerHandler
             claims = jwtVerifier.verify(token);
         } catch (JwtException e) {
             // Invalid signature or expired token -> 401 at the gateway.
+            JsonLog.warn(context, "authorize.denied", Map.of("reason", "invalid_token"));
             throw new RuntimeException("Unauthorized");
         }
 
@@ -59,7 +61,26 @@ public class TokenAuthorizerHandler
             authContext.put("name", String.valueOf(name));
         }
 
-        return allow(claims.getSubject(), event.getMethodArn(), authContext);
+        JsonLog.info(context, "authorize.allow", Map.of(
+                "document", JsonLog.maskDocument(claims.getSubject()),
+                "clientId", clientId == null ? "" : String.valueOf(clientId)));
+
+        // Scope the Allow to the whole API/stage (not the single method ARN) so API Gateway can
+        // safely cache the authorizer result: a per-method policy cached from the first call
+        // would otherwise deny every other route until the cache TTL expires.
+        return allow(claims.getSubject(), wildcardResource(event.getMethodArn()), authContext);
+    }
+
+    /** {@code arn:aws:execute-api:region:acct:apiId/stage/GET/orders -> .../apiId/stage/*}{@code /*} */
+    static String wildcardResource(String methodArn) {
+        if (methodArn == null) {
+            return null;
+        }
+        String[] parts = methodArn.split("/");
+        if (parts.length < 2) {
+            return methodArn;
+        }
+        return parts[0] + "/" + parts[1] + "/*/*";
     }
 
     private static String stripBearer(String header) {

@@ -184,7 +184,9 @@ Key outputs: `issuer_invoke_arn`, `authorizer_invoke_arn` (consumed by the gatew
 
 ### Shared infrastructure via remote state
 
-VPC subnets, the EKS node security group, and the RDS JDBC URL are **read from the os-management EKS Terraform state** (`terraform_remote_state`), so they are **not** manual inputs here. This requires os-management to be deployed in EKS mode (`USE_EKS=true`) and to expose these root outputs: `private_subnet_ids`, `node_security_group_id`, `rds_jdbc_url`.
+VPC subnets, the EKS node security group, and the RDS JDBC URL are **read from the os-management root Terraform state** (`terraform_remote_state`), so they are **not** manual inputs here. This requires os-management to be deployed in EKS mode (`USE_EKS=true`) and to expose these root outputs: `private_subnet_ids`, `node_security_group_id`, `rds_jdbc_url`.
+
+The os-management pipeline stores that state at **`homol/terraform.tfstate`** (develop branch) and **`prod/terraform.tfstate`** (main branch). The CD workflow here passes the matching key via `TF_VAR_os_management_state_key`; for a manual `terraform apply` set `os_management_state_key` in `terraform.tfvars` (default: `homol/terraform.tfstate`).
 
 The issuer Lambda attaches to the EKS **node security group**, which is the SG the RDS instance already allows on port 5432.
 
@@ -198,7 +200,26 @@ Repo **secrets**: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `DB_USER`, `DB_P
 
 ---
 
+## Observability
+
+Both functions emit **one-line JSON logs** to CloudWatch (`level`, `event`, `requestId`, `function`, …).
+`requestId` is the Lambda request id and lets a single call be traced across the API Gateway
+access log → authorizer → issuer. CPF/CNPJ values are always masked (`529******25`).
+
+The token authorizer returns an Allow policy scoped to the whole API stage (`…/<stage>/*/*`)
+rather than the single method ARN, so API Gateway can cache the authorizer result
+(`authorizer_result_ttl_in_seconds`) without denying every route after the first call.
+
+## Backend integration (required)
+
+A protected call only succeeds if **os-management** knows how to accept this token. The main
+app runs a filter that recognises the CPF token (subject = CPF/CNPJ, `clientId` claim, no
+`users` row), grants it `ROLE_CLIENT`, and resolves the client by document. Deploy a version
+of os-management that includes that change (`feature/cpf-auth-integration` or later) — see its
+`SecurityConfig` / `JwtFilter`.
+
 ## Notes
 
 - Remember to add the **`soat-architecture`** user to this repository (Tech Challenge delivery requirement).
 - Secrets are managed in AWS Secrets Manager and injected as Lambda environment variables so the function code stays runtime-agnostic; fetching them at runtime via the AWS SDK is a straightforward future hardening.
+- `iss` / `aud` claims are not stamped yet: tokens are distinguished from staff tokens by the `clientId` claim. Adding `iss`/`aud` is a low-effort hardening if the platform ever gains a third token issuer.

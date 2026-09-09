@@ -49,6 +49,13 @@ class TokenAuthorizerHandlerTest {
     }
 
     @Test
+    void scopesAllowPolicyToWholeApiStageSoAuthorizerCacheIsSafe() {
+        assertThat(TokenAuthorizerHandler.wildcardResource(
+                "arn:aws:execute-api:us-east-1:123456789012:abc123/prod/GET/orders"))
+                .isEqualTo("arn:aws:execute-api:us-east-1:123456789012:abc123/prod/*/*");
+    }
+
+    @Test
     void acceptsTokenWithoutBearerPrefix() {
         String token = issuer.issue("52998224725", new Client(7L, "JOAO", true));
         assertThat(invoke(token).getPrincipalId()).isEqualTo("52998224725");

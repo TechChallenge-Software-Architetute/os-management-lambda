@@ -68,9 +68,14 @@ variable "os_management_state_bucket" {
 }
 
 variable "os_management_state_key" {
-  description = "State key for the os-management EKS stack."
+  description = <<-EOT
+    S3 key of the os-management root Terraform state that exposes private_subnet_ids,
+    node_security_group_id and rds_jdbc_url. The os-management pipeline writes
+    "homol/terraform.tfstate" on the develop branch and "prod/terraform.tfstate" on main,
+    so the lambda CD sets this per environment.
+  EOT
   type        = string
-  default     = "eks/terraform.tfstate"
+  default     = "homol/terraform.tfstate"
 }
 
 # --- JWT ------------------------------------------------------------------
