@@ -115,6 +115,12 @@ resource "aws_lambda_function" "issuer" {
   memory_size      = var.lambda_memory_mb
   timeout          = var.lambda_timeout_seconds
 
+  depends_on = [
+    aws_iam_role_policy_attachment.issuer_basic,
+    aws_iam_role_policy_attachment.issuer_vpc,
+    aws_iam_role_policy.issuer_secrets,
+  ]
+
   vpc_config {
     subnet_ids         = local.subnet_ids
     security_group_ids = local.security_group_ids
@@ -140,6 +146,11 @@ resource "aws_lambda_function" "authorizer" {
   source_code_hash = filebase64sha256(var.lambda_jar_path)
   memory_size      = 256
   timeout          = var.lambda_timeout_seconds
+
+  depends_on = [
+    aws_iam_role_policy_attachment.authorizer_basic,
+    aws_iam_role_policy.authorizer_secrets,
+  ]
 
   environment {
     variables = {

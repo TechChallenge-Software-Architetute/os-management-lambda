@@ -56,6 +56,10 @@ jobs:
           aws-secret-access-key: ${{ github.ref_name == 'main' && secrets.AWS_SECRET_ACCESS_KEY_MAIN || secrets.AWS_SECRET_ACCESS_KEY_DEVELOP }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Verify AWS identity
+        run: |
+          aws sts get-caller-identity
+
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.9.8"
