@@ -22,6 +22,10 @@ terraform {
 provider "aws" {
   region = var.aws_region
 
+  # Guardrail: fail fast if the active credentials point at an unexpected account.
+  # Empty (local validation) = no restriction; CI sets TF_VAR_aws_account_id.
+  allowed_account_ids = var.aws_account_id != "" ? [var.aws_account_id] : []
+
   default_tags {
     tags = {
       Project     = "os-management"
