@@ -20,8 +20,8 @@ jobs:
       TF_VAR_db_user: ${{ secrets.DB_USER }}
       TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
       TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
-      # Shared state key (branch-scoped) inside the shared bucket.
-      TF_VAR_os_management_state_key: ${{ github.ref_name }}/terraform.tfstate
+      # Root os-management state key: develop maps to homol and main maps to prod.
+      TF_VAR_os_management_state_key: ${{ github.ref_name == 'main' && 'prod/terraform.tfstate' || 'homol/terraform.tfstate' }}
       # State buckets are stored as GitHub Secrets, selected by branch (main->MAIN, develop->DEVELOP).
       TF_STATE_BUCKET: ${{ github.ref_name == 'main' && secrets.TF_STATE_BUCKET_MAIN || secrets.TF_STATE_BUCKET_DEVELOP }}
       TF_VAR_os_management_state_bucket: ${{ github.ref_name == 'main' && secrets.TF_STATE_BUCKET_MAIN || secrets.TF_STATE_BUCKET_DEVELOP }}
