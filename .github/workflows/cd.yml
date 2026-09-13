@@ -1,0 +1,71 @@
+name: CD
+
+on:
+  push:
+    branches: [develop, main]
+
+# develop and main both deploy; the branch name is the environment.
+jobs:
+  deploy:
+    name: Package & Deploy
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name }}
+    defaults:
+      run:
+        working-directory: terraform
+    env:
+      # Environment is the branch name: develop or main.
+      TF_VAR_environment: ${{ github.ref_name }}
+      # Repo-scoped secrets (per GitHub Environment: develop/main).
+      TF_VAR_db_user: ${{ secrets.DB_USER }}
+      TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+      TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+      # Explicit infrastructure inputs; no dependency on another Terraform state.
+      TF_VAR_db_url: ${{ github.ref_name == 'main' && secrets.DB_URL_MAIN || secrets.DB_URL_DEVELOP }}
+      # Branch-specific secrets must be JSON/HCL lists, e.g. ["subnet-aaa", "subnet-bbb"] and ["sg-aaa"].
+      TF_VAR_vpc_subnet_ids: ${{ github.ref_name == 'main' && secrets.SUBNET_IDS_MAIN || secrets.SUBNET_IDS_DEVELOP }}
+      TF_VAR_vpc_security_group_ids: ${{ github.ref_name == 'main' && secrets.VPC_SECURITY_GROUP_IDS_MAIN || secrets.VPC_SECURITY_GROUP_IDS_DEVELOP }}
+      # State buckets are stored as GitHub Secrets, selected by branch (main->MAIN, develop->DEVELOP).
+      TF_STATE_BUCKET: ${{ github.ref_name == 'main' && secrets.TF_STATE_BUCKET_MAIN || secrets.TF_STATE_BUCKET_DEVELOP }}
+      TF_VAR_aws_account_id: ${{ github.ref_name == 'main' && secrets.AWS_ACCOUNT_ID_MAIN || secrets.AWS_ACCOUNT_ID_DEVELOP }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: "21"
+          cache: maven
+
+      - name: Build Lambda jar
+        working-directory: .
+        run: ./mvnw -B clean package
+
+      - name: Check Lambda infrastructure inputs
+        run: |
+          test -n "${TF_VAR_db_url}" || { echo "::error::Missing DB_URL secret."; exit 1; }
+          test -n "${TF_VAR_vpc_subnet_ids}" || { echo "::error::Missing VPC_SUBNET_IDS secret."; exit 1; }
+          test -n "${TF_VAR_vpc_security_group_ids}" || { echo "::error::Missing VPC_SECURITY_GROUP_IDS secret."; exit 1; }
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ github.ref_name == 'main' && secrets.AWS_ACCESS_KEY_ID_MAIN || secrets.AWS_ACCESS_KEY_ID_DEVELOP }}
+          aws-secret-access-key: ${{ github.ref_name == 'main' && secrets.AWS_SECRET_ACCESS_KEY_MAIN || secrets.AWS_SECRET_ACCESS_KEY_DEVELOP }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - name: Terraform init
+        run: |
+          terraform init \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="key=lambda/${TF_VAR_environment}/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}"
+
+      - name: Terraform apply
+        run: terraform apply -auto-approve -var="aws_region=${{ env.AWS_REGION }}"

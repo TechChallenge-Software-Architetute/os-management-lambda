@@ -1,0 +1,17 @@
+# Copy to terraform.tfvars (or pass via CI) and fill in real values.
+# Do NOT commit real secrets.
+
+aws_region  = "us-east-1"
+environment = "develop"
+
+# Database and network values are explicit inputs. They are not read from another
+# Terraform state. Do not commit actual production values.
+db_url                 = "jdbc:postgresql://database-host:5432/workshop"
+db_user                = "user"
+db_password            = "change-me"
+vpc_subnet_ids         = ["subnet-aaaa", "subnet-bbbb"]
+vpc_security_group_ids = ["sg-aaaa"]
+
+# JWT — MUST be the exact same value as JWT_SECRET in os-management (min. 32 chars / 256 bits for HS256)
+jwt_secret        = "replace-with-the-shared-32char-minimum-hs256-secret"
+jwt_expiration_ms = 86400000
