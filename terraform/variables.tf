@@ -46,12 +46,11 @@ variable "lambda_timeout_seconds" {
 }
 
 # --- Database (managed PostgreSQL) ---------------------------------------
-# db_url is optional: when empty it is read from the os-management remote state.
 
 variable "db_url" {
-  description = "JDBC URL for the clients database. Leave empty to source it from os-management state."
+  description = "JDBC URL for the clients database."
   type        = string
-  default     = ""
+  sensitive   = true
 }
 
 variable "db_user" {
@@ -64,24 +63,6 @@ variable "db_password" {
   description = "Database password."
   type        = string
   sensitive   = true
-}
-
-# --- Shared os-management state (source of VPC + RDS values) --------------
-
-variable "os_management_state_bucket" {
-  description = "S3 bucket holding the os-management Terraform state."
-  type        = string
-}
-
-variable "os_management_state_key" {
-  description = <<-EOT
-    S3 key of the os-management root Terraform state that exposes private_subnet_ids,
-    node_security_group_id and rds_jdbc_url. The os-management deployment maps
-    develop to "homol/terraform.tfstate" and main to "prod/terraform.tfstate".
-    The Lambda CD sets this value per environment.
-  EOT
-  type        = string
-  default     = "homol/terraform.tfstate"
 }
 
 # --- JWT ------------------------------------------------------------------
@@ -99,18 +80,15 @@ variable "jwt_expiration_ms" {
 }
 
 # --- VPC (auth issuer needs to reach the database) ------------------------
-# Both optional: when empty they are read from the os-management remote state.
 
 variable "vpc_subnet_ids" {
-  description = "Private subnet IDs for the auth issuer Lambda. Empty = use os-management state."
+  description = "Private subnet IDs for the auth issuer Lambda."
   type        = list(string)
-  default     = []
 }
 
 variable "vpc_security_group_ids" {
-  description = "Security group IDs for the Lambda (must reach the DB). Empty = use os-management node SG."
+  description = "Security group IDs for the Lambda (must reach the DB)."
   type        = list(string)
-  default     = []
 }
 
 # --- Protected backend (target of the authorized routes) ------------------
