@@ -21,8 +21,9 @@ jobs:
       TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
       # Shared state bucket (repo variable, same as os-management)
       TF_VAR_os_management_state_bucket: ${{ vars.TF_STATE_BUCKET }}
-      # os-management writes its state under the matching branch key (develop/ or main/).
-      TF_VAR_os_management_state_key: ${{ github.ref_name }}/terraform.tfstate
+      # The platform maps develop -> homol and main -> prod. Its EKS pipeline
+      # persists the shared VPC/RDS outputs under those environment keys.
+      TF_VAR_os_management_state_key: ${{ github.ref_name == 'develop' && 'homol' || 'prod' }}/terraform.tfstate
       AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
     steps:
       - uses: actions/checkout@v4
