@@ -5,7 +5,7 @@ variable "aws_region" {
 }
 
 variable "environment" {
-  description = "Deployment environment (e.g. homolog, prod)."
+  description = "Deployment environment. Matches the branch name: develop or main."
   type        = string
 }
 
@@ -71,11 +71,11 @@ variable "os_management_state_key" {
   description = <<-EOT
     S3 key of the os-management root Terraform state that exposes private_subnet_ids,
     node_security_group_id and rds_jdbc_url. The os-management pipeline writes
-    "homol/terraform.tfstate" on the develop branch and "prod/terraform.tfstate" on main,
+    "develop/terraform.tfstate" on the develop branch and "main/terraform.tfstate" on main,
     so the lambda CD sets this per environment.
   EOT
   type        = string
-  default     = "homol/terraform.tfstate"
+  default     = "develop/terraform.tfstate"
 }
 
 # --- JWT ------------------------------------------------------------------

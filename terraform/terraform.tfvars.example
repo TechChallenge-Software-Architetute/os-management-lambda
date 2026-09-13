@@ -2,13 +2,13 @@
 # Do NOT commit real secrets.
 
 aws_region  = "us-east-1"
-environment = "homolog"
+environment = "develop"
 
 # Shared os-management state — VPC subnets, node SG and RDS URL are read from here,
 # so you do NOT need to set db_url / vpc_subnet_ids / vpc_security_group_ids manually.
 os_management_state_bucket = "os-management-tfstate"
-# os-management writes homol/terraform.tfstate on develop and prod/terraform.tfstate on main:
-# os_management_state_key = "homol/terraform.tfstate"  # default
+# os-management writes develop/terraform.tfstate on develop and main/terraform.tfstate on main:
+# os_management_state_key = "develop/terraform.tfstate"  # default
 
 # Database credentials (not exposed as os-management outputs, so still required)
 db_user     = "user"

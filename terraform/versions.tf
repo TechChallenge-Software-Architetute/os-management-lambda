@@ -8,7 +8,7 @@ terraform {
     }
   }
 
-  # Remote state (recommended for homolog/prod). Configured by CI via -backend-config,
+  # Remote state (recommended for develop/main). Configured by CI via -backend-config,
   # so local `terraform init -backend=false` still works for validation.
   #
   # backend "s3" {

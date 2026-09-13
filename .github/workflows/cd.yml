@@ -4,7 +4,7 @@ on:
   push:
     branches: [develop, main]
 
-# develop -> homolog, main -> prod
+# develop and main both deploy; the branch name is the environment.
 jobs:
   deploy:
     name: Package & Deploy
@@ -13,16 +13,16 @@ jobs:
       run:
         working-directory: terraform
     env:
-      # develop -> homolog, main -> prod
-      TF_VAR_environment: ${{ github.ref_name == 'main' && 'prod' || 'homolog' }}
+      # Environment is the branch name: develop or main.
+      TF_VAR_environment: ${{ github.ref_name }}
       # Secrets reused from os-management conventions (DB_USER, DB_PASSWORD, JWT_SECRET)
       TF_VAR_db_user: ${{ secrets.DB_USER }}
       TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
       TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
       # Shared state bucket (repo variable, same as os-management)
       TF_VAR_os_management_state_bucket: ${{ vars.TF_STATE_BUCKET }}
-      # os-management writes homol/ on develop and prod/ on main (see its pipeline.yml)
-      TF_VAR_os_management_state_key: ${{ github.ref_name == 'main' && 'prod/terraform.tfstate' || 'homol/terraform.tfstate' }}
+      # os-management writes its state under the matching branch key (develop/ or main/).
+      TF_VAR_os_management_state_key: ${{ github.ref_name }}/terraform.tfstate
       AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
     steps:
       - uses: actions/checkout@v4

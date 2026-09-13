@@ -31,7 +31,7 @@ Both sign/verify with the **same shared `JWT_SECRET`** (HS256), so tokens issued
   fronts these functions lives in the **`os-management-gateway`** repo and references
   them via `terraform_remote_state`.
 - **AWS Secrets Manager** — managed store for `JWT_SECRET` and DB credentials
-- **GitHub Actions** — CI (test + `terraform validate`) and CD (`develop`→homolog, `main`→prod)
+- **GitHub Actions** — CI (test + `terraform validate`) and CD (`develop` and `main` both deploy)
 
 ---
 
@@ -158,7 +158,7 @@ cp terraform.tfvars.example terraform.tfvars   # fill in real values (never comm
 
 terraform init \
   -backend-config="bucket=<state-bucket>" \
-  -backend-config="key=lambda/homolog/terraform.tfstate" \
+  -backend-config="key=lambda/develop/terraform.tfstate" \
   -backend-config="region=us-east-1"
 
 terraform apply
@@ -178,15 +178,15 @@ Key outputs: `issuer_invoke_arn`, `authorizer_invoke_arn` (consumed by the gatew
 
 ## CI/CD
 
-- **Branch protection:** `main` (prod) and `develop` (homolog) — no direct commits; merges via Pull Request.
+- **Branch protection:** `main` and `develop` — no direct commits; merges via Pull Request.
 - **CI** (`.github/workflows/ci.yml`): on PRs to `develop`/`main` and on `feature/**` pushes — runs Java tests and `terraform fmt`/`validate`.
-- **CD** (`.github/workflows/cd.yml`): on push to `develop` → **homolog**, on push to `main` → **prod** — packages the jar and runs `terraform apply`. Branch → environment is derived in the workflow (no GitHub Environments needed), matching the os-management flat repo-secret convention.
+- **CD** (`.github/workflows/cd.yml`): on push to `develop` and on push to `main` — packages the jar and runs `terraform apply`. The branch name is used as the environment (no GitHub Environments needed), matching the os-management flat repo-secret convention.
 
 ### Shared infrastructure via remote state
 
 VPC subnets, the EKS node security group, and the RDS JDBC URL are **read from the os-management root Terraform state** (`terraform_remote_state`), so they are **not** manual inputs here. This requires os-management to be deployed in EKS mode (`USE_EKS=true`) and to expose these root outputs: `private_subnet_ids`, `node_security_group_id`, `rds_jdbc_url`.
 
-The os-management pipeline stores that state at **`homol/terraform.tfstate`** (develop branch) and **`prod/terraform.tfstate`** (main branch). The CD workflow here passes the matching key via `TF_VAR_os_management_state_key`; for a manual `terraform apply` set `os_management_state_key` in `terraform.tfvars` (default: `homol/terraform.tfstate`).
+The os-management pipeline stores that state at **`develop/terraform.tfstate`** (develop branch) and **`main/terraform.tfstate`** (main branch). The CD workflow here passes the matching key via `TF_VAR_os_management_state_key`; for a manual `terraform apply` set `os_management_state_key` in `terraform.tfvars` (default: `develop/terraform.tfstate`).
 
 The issuer Lambda attaches to the EKS **node security group**, which is the SG the RDS instance already allows on port 5432.
 
