@@ -21,7 +21,7 @@ jobs:
       TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
       TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
       # Explicit infrastructure inputs; no dependency on another Terraform state.
-      TF_VAR_db_url: ${{ secrets.DB_URL }}
+      TF_VAR_db_url: ${{ github.ref_name == 'main' && secrets.DB_URL_MAIN || secrets.DB_URL_DEVELOP }}
       # Branch-specific secrets must be JSON/HCL lists, e.g. ["subnet-aaa", "subnet-bbb"] and ["sg-aaa"].
       TF_VAR_vpc_subnet_ids: ${{ github.ref_name == 'main' && secrets.VPC_SUBNET_IDS_MAIN || secrets.VPC_SUBNET_IDS_DEVELOP }}
       TF_VAR_vpc_security_group_ids: ${{ github.ref_name == 'main' && secrets.VPC_SECURITY_GROUP_IDS_MAIN || secrets.VPC_SECURITY_GROUP_IDS_DEVELOP }}
