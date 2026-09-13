@@ -76,12 +76,12 @@ variable "os_management_state_bucket" {
 variable "os_management_state_key" {
   description = <<-EOT
     S3 key of the os-management root Terraform state that exposes private_subnet_ids,
-    node_security_group_id and rds_jdbc_url. The os-management pipeline writes
-    "develop/terraform.tfstate" on the develop branch and "main/terraform.tfstate" on main,
-    so the lambda CD sets this per environment.
+    node_security_group_id and rds_jdbc_url. The os-management deployment maps
+    develop to "homol/terraform.tfstate" and main to "prod/terraform.tfstate".
+    The Lambda CD sets this value per environment.
   EOT
   type        = string
-  default     = "develop/terraform.tfstate"
+  default     = "homol/terraform.tfstate"
 }
 
 # --- JWT ------------------------------------------------------------------

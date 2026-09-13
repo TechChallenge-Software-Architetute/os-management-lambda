@@ -186,7 +186,7 @@ Key outputs: `issuer_invoke_arn`, `authorizer_invoke_arn` (consumed by the gatew
 
 VPC subnets, the EKS node security group, and the RDS JDBC URL are **read from the os-management root Terraform state** (`terraform_remote_state`), so they are **not** manual inputs here. This requires os-management to be deployed in EKS mode (`USE_EKS=true`) and to expose these root outputs: `private_subnet_ids`, `node_security_group_id`, `rds_jdbc_url`.
 
-The os-management pipeline stores that state at **`develop/terraform.tfstate`** (develop branch) and **`main/terraform.tfstate`** (main branch). The CD workflow here passes the matching key via `TF_VAR_os_management_state_key`; for a manual `terraform apply` set `os_management_state_key` in `terraform.tfvars` (default: `develop/terraform.tfstate`).
+The os-management pipeline maps `develop` to the homol environment and stores its state at **`homol/terraform.tfstate`**; it maps `main` to production at **`prod/terraform.tfstate`**. The CD workflow here passes the matching key via `TF_VAR_os_management_state_key`; for a manual `terraform apply`, set `os_management_state_key` in `terraform.tfvars` (default: `homol/terraform.tfstate`).
 
 The issuer Lambda attaches to the EKS **node security group**, which is the SG the RDS instance already allows on port 5432.
 
