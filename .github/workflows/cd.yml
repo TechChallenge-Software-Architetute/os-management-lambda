@@ -9,6 +9,7 @@ jobs:
   deploy:
     name: Package & Deploy
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name }}
     defaults:
       run:
         working-directory: terraform
@@ -23,6 +24,7 @@ jobs:
       TF_VAR_os_management_state_bucket: ${{ vars.TF_STATE_BUCKET }}
       # os-management writes its state under the matching branch key (develop/ or main/).
       TF_VAR_os_management_state_key: ${{ github.ref_name }}/terraform.tfstate
+      TF_VAR_aws_account_id: ${{ vars.AWS_ACCOUNT_ID }}
       AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
     steps:
       - uses: actions/checkout@v4

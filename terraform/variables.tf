@@ -4,6 +4,12 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "aws_account_id" {
+  description = "Expected AWS account ID. Guards the provider against deploying to the wrong account. Empty = no restriction (local validation)."
+  type        = string
+  default     = ""
+}
+
 variable "environment" {
   description = "Deployment environment. Matches the branch name: develop or main."
   type        = string
