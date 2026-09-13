@@ -27,7 +27,7 @@ jobs:
       TF_VAR_vpc_security_group_ids: ${{ github.ref_name == 'main' && secrets.VPC_SECURITY_GROUP_IDS_MAIN || secrets.VPC_SECURITY_GROUP_IDS_DEVELOP }}
       # State buckets are stored as GitHub Secrets, selected by branch (main->MAIN, develop->DEVELOP).
       TF_STATE_BUCKET: ${{ github.ref_name == 'main' && secrets.TF_STATE_BUCKET_MAIN || secrets.TF_STATE_BUCKET_DEVELOP }}
-      TF_VAR_aws_account_id: ${{ github.ref_name == 'main' && vars.AWS_ACCOUNT_ID_MAIN || vars.AWS_ACCOUNT_ID_DEVELOP }}
+      TF_VAR_aws_account_id: ${{ github.ref_name == 'main' && secrets.AWS_ACCOUNT_ID_MAIN || secrets.AWS_ACCOUNT_ID_DEVELOP }}
       AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
     steps:
       - uses: actions/checkout@v4
