@@ -1,4 +1,4 @@
-# os-management-lambda 
+# os-management-lambda
 
 Serverless **CPF authentication** for the os-management platform (FIAP SOAT — Tech Challenge Fase 3).
 
