@@ -1,73 +1,73 @@
 # os-management-lambda
 
-Serverless **CPF authentication** for the os-management platform (FIAP SOAT — Tech Challenge Fase 3).
+Autenticação serverless de **CPF** para a plataforma os-management (FIAP SOAT — Tech Challenge Fase 3).
 
-This repository contains the AWS Lambda functions and the Terraform/CI‑CD needed to:
+Este repositório contém as funções AWS Lambda e o Terraform/CI-CD necessários para:
 
-1. **Issue tokens** — validate a client's CPF, confirm the client exists and is **active** in the database, and return a signed **JWT**.
-2. **Authorize requests** — validate that JWT on protected API Gateway routes before traffic reaches the backend.
+1. **Emitir tokens** — validar o CPF de um cliente, confirmar que o cliente existe e está **ativo** no banco, e devolver um **JWT** assinado.
+2. **Autorizar requisições** — validar esse JWT nas rotas protegidas do API Gateway antes que o tráfego chegue ao backend.
 
 ---
 
-## Responsibilities (two functions, one contract)
+## Responsabilidades (duas funções, um contrato)
 
-| Function | Handler | Role |
+| Função | Handler | Papel |
 |---|---|---|
-| **Auth issuer** | `com.os.workshop.auth.AuthHandler` | `POST /auth` — validates CPF, checks client status in the DB, **issues** a JWT. Runs in the VPC to reach the database. |
-| **Token authorizer** | `com.os.workshop.auth.TokenAuthorizerHandler` | API Gateway `TOKEN` authorizer — **validates** the JWT on protected routes. No DB access. |
+| **Auth issuer** | `com.os.workshop.auth.AuthHandler` | `POST /auth` — valida o CPF, verifica o status do cliente no banco, **emite** um JWT. Roda dentro da VPC para alcançar o banco. |
+| **Token authorizer** | `com.os.workshop.auth.TokenAuthorizerHandler` | Authorizer `TOKEN` do API Gateway — **valida** o JWT nas rotas protegidas. Sem acesso ao banco. |
 
-Both sign/verify with the **same shared `JWT_SECRET`** (HS256), so tokens issued here are verifiable across the platform.
+Ambas assinam/validam com o **mesmo `JWT_SECRET` compartilhado** (HS256), de forma que os tokens emitidos aqui são verificáveis em toda a plataforma.
 
-> The issuer only *issues*; the authorizer only *validates*. A client authenticates once at `/auth`, then sends `Authorization: Bearer <token>` on every protected call.
+> O issuer apenas *emite*; o authorizer apenas *valida*. Um cliente se autentica uma vez em `/auth`, depois envia `Authorization: Bearer <token>` em cada chamada protegida.
 
 ---
 
-## Technologies
+## Tecnologias
 
 - **Java 21**, Maven (fat jar via `maven-shade-plugin`)
-- **jjwt 0.13.0** (HS256) — same library/version as the main app
-- **PostgreSQL JDBC** — lookup on `clients.document`
-- **AWS Lambda** (functions) — provisioned with **Terraform**. The API Gateway that
-  fronts these functions lives in the **`os-management-gateway`** repo and references
-  them via `terraform_remote_state`.
-- **AWS Secrets Manager** — managed store for `JWT_SECRET` and DB credentials
-- **GitHub Actions** — CI (test + `terraform validate`) and CD (`develop` and `main` both deploy)
+- **jjwt 0.13.0** (HS256) — mesma biblioteca/versão usada pela aplicação principal
+- **PostgreSQL JDBC** — consulta em `clients.document`
+- **AWS Lambda** (funções) — provisionadas com **Terraform**. O API Gateway que
+  expõe essas funções vive no repositório **`os-management-gateway`** e as referencia
+  via `terraform_remote_state`.
+- **AWS Secrets Manager** — armazenamento gerenciado do `JWT_SECRET` e das credenciais do banco
+- **GitHub Actions** — CI (testes + `terraform validate`) e CD (`develop` e `main` fazem deploy)
 
 ---
 
-## Architecture
+## Arquitetura
 
 ```mermaid
 flowchart LR
-    client([Client])
+    cliente([Cliente])
     subgraph AWS
       apigw[API Gateway REST]
       issuer[Lambda: Auth Issuer]
       authz[Lambda: Token Authorizer]
       sm[(Secrets Manager)]
-      db[(PostgreSQL - clients)]
-      backend[Backend API on Kubernetes]
+      db[(PostgreSQL - tabela clients)]
+      backend[Backend API em Kubernetes]
     end
 
-    client -- "POST /auth {cpf}" --> apigw
+    cliente -- "POST /auth {cpf}" --> apigw
     apigw -- AWS_PROXY --> issuer
-    issuer -- "SELECT by document" --> db
-    issuer -- "signed JWT" --> client
+    issuer -- "SELECT por documento" --> db
+    issuer -- "JWT assinado" --> cliente
 
-    client -- "ANY /* (Bearer JWT)" --> apigw
-    apigw -- "validate token" --> authz
+    cliente -- "ANY /* (Bearer JWT)" --> apigw
+    apigw -- "valida token" --> authz
     authz -- "Allow / Deny" --> apigw
-    apigw -- "HTTP_PROXY (if allowed)" --> backend
+    apigw -- "HTTP_PROXY (se permitido)" --> backend
 
-    issuer -. reads .-> sm
-    authz -. reads .-> sm
+    issuer -. lê .-> sm
+    authz -. lê .-> sm
 ```
 
-### Authentication sequence
+### Sequência de Autenticação
 
 ```mermaid
 sequenceDiagram
-    participant C as Client
+    participant C as Cliente
     participant G as API Gateway
     participant I as Auth Issuer (Lambda)
     participant D as PostgreSQL
@@ -75,25 +75,25 @@ sequenceDiagram
     participant B as Backend API
 
     C->>G: POST /auth { cpf }
-    G->>I: proxy event
-    I->>I: validate CPF (check digits)
+    G->>I: evento de proxy
+    I->>I: valida CPF (dígitos verificadores)
     I->>D: SELECT id,name,active WHERE document = cpf
-    alt not found
+    alt não encontrado
         I-->>C: 404 Client not found
-    else inactive
+    else inativo
         I-->>C: 403 Client is inactive
-    else valid & active
+    else válido e ativo
         I-->>C: 200 { token, expiresIn, client }
     end
 
     C->>G: GET /orders (Authorization: Bearer <token>)
-    G->>Z: TOKEN authorizer
-    Z->>Z: verify signature + expiration
-    alt valid
+    G->>Z: authorizer TOKEN
+    Z->>Z: verifica assinatura + expiração
+    alt válido
         Z-->>G: Allow (principal = CPF)
-        G->>B: forward request
-        B-->>C: 200 protected response
-    else invalid/expired
+        G->>B: encaminha requisição
+        B-->>C: 200 resposta protegida
+    else inválido/expirado
         Z-->>G: 401 Unauthorized
         G-->>C: 401
     end
@@ -105,24 +105,24 @@ sequenceDiagram
 
 ### `POST /auth`
 
-Request:
+Requisição:
 
 ```json
 { "cpf": "529.982.247-25" }
 ```
 
-CPF is accepted formatted or as raw digits.
+O CPF é aceito formatado ou apenas com dígitos.
 
-Responses:
+Respostas:
 
-| Status | Body | Meaning |
+| Status | Corpo | Significado |
 |---|---|---|
-| `200` | `{ "token": "...", "expiresIn": 86400000, "client": { "id": 1, "name": "JOAO DA SILVA" } }` | Authenticated |
-| `400` | `{ "error": "Invalid CPF" }` / `{ "error": "CPF is required" }` | Bad/missing CPF |
-| `404` | `{ "error": "Client not found" }` | No client with that document |
-| `403` | `{ "error": "Client is inactive" }` | Client exists but is deactivated |
+| `200` | `{ "token": "...", "expiresIn": 86400000, "client": { "id": 1, "name": "JOAO DA SILVA" } }` | Autenticado |
+| `400` | `{ "error": "Invalid CPF" }` / `{ "error": "CPF is required" }` | CPF inválido/ausente |
+| `404` | `{ "error": "Client not found" }` | Nenhum cliente com esse documento |
+| `403` | `{ "error": "Client is inactive" }` | Cliente existe mas está desativado |
 
-The JWT payload:
+Payload do JWT:
 
 ```json
 {
@@ -137,24 +137,28 @@ The JWT payload:
 
 ### Postman / Bruno
 
-The platform API collection lives in the main `os-management` repo under `bruno/os-management-api` (`01 - Auth`). Point the `baseUrl` environment variable at the API Gateway stage URL (the `auth_endpoint` output of the **`os-management-gateway`** repo).
+A collection da API da plataforma vive no repositório principal
+[`os-management` em `bruno/os-management-api`](https://github.com/TechChallenge-Software-Architetute/os-management/tree/develop/bruno/os-management-api)
+(`01 - Auth`). Aponte a variável de ambiente `baseUrl` para a URL do stage do API Gateway
+(output `auth_endpoint` do repositório **`os-management-gateway`**).
 
 ---
 
-## Build & test locally
+## Build e Testes Locais
 
 ```bash
-./mvnw clean verify        # compile + run unit tests
-./mvnw package             # build the Lambda fat jar (target/os-management-lambda.jar)
+./mvnw clean verify        # compila + roda os testes unitários
+./mvnw package             # empacota o fat jar da Lambda (target/os-management-lambda.jar)
 ```
 
 ## Deploy (Terraform)
 
-Prerequisites: an S3 bucket for remote state, a VPC with subnets/security groups that can reach the database, and the backend URL.
+Pré-requisitos: um bucket S3 para o state remoto, uma VPC com subnets/security groups que
+alcancem o banco, e a URL do backend.
 
 ```bash
 cd terraform
-cp terraform.tfvars.example terraform.tfvars   # fill in real values (never commit)
+cp terraform.tfvars.example terraform.tfvars   # preencha com valores reais (nunca commitar)
 
 terraform init \
   -backend-config="bucket=<state-bucket>" \
@@ -164,62 +168,82 @@ terraform init \
 terraform apply
 ```
 
-Key outputs: `issuer_invoke_arn`, `authorizer_invoke_arn` (consumed by the gateway repo).
+Outputs principais: `issuer_invoke_arn`, `authorizer_invoke_arn` (consumidos pelo repositório do gateway).
 
-### Environment variables consumed by the functions
+### Variáveis de ambiente consumidas pelas funções
 
-| Variable | Function | Purpose |
+| Variável | Função | Propósito |
 |---|---|---|
-| `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | issuer | database connection |
-| `JWT_SECRET` | issuer + authorizer | HS256 sign/verify (shared) |
-| `JWT_EXPIRATION` | issuer | token lifetime (ms, default 86400000) |
+| `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | issuer | conexão com o banco |
+| `JWT_SECRET` | issuer + authorizer | assinatura/validação HS256 (compartilhado) |
+| `JWT_EXPIRATION` | issuer | tempo de vida do token (ms, padrão 86400000) |
 
 ---
 
 ## CI/CD
 
-- **Branch protection:** `main` and `develop` — no direct commits; merges via Pull Request.
-- **CI** (`.github/workflows/ci.yml`): on PRs to `develop`/`main` and on `feature/**` pushes — runs Java tests and `terraform fmt`/`validate`.
-- **CD** (`.github/workflows/cd.yml`): on push to `develop` and on push to `main` — packages the jar and runs `terraform apply`. The branch name is used as the environment (no GitHub Environments needed), matching the os-management flat repo-secret convention.
+- **Proteção de branch:** `main` e `develop` — sem commits diretos; merge apenas via Pull Request.
+- **CI** (`.github/workflows/ci.yml`): em PRs para `develop`/`main` e em pushes para `feature/**` —
+  roda testes Java e `terraform fmt`/`validate`.
+- **CD** (`.github/workflows/cd.yml`): em push para `develop` e para `main` — empacota o jar e roda
+  `terraform apply`. O nome da branch é usado como ambiente (sem precisar de GitHub Environments),
+  seguindo a convenção de secrets "flat" por repositório do os-management.
 
-### Shared infrastructure via remote state
+### Infraestrutura compartilhada via remote state
 
-VPC subnets, the EKS node security group, and the RDS JDBC URL are **read from the os-management root Terraform state** (`terraform_remote_state`), so they are **not** manual inputs here. This requires os-management to be deployed in EKS mode (`USE_EKS=true`) and to expose these root outputs: `private_subnet_ids`, `node_security_group_id`, `rds_jdbc_url`.
+Subnets da VPC, o security group de nós do EKS e a URL JDBC do RDS são **lidos do state raiz
+do Terraform do os-management** (`terraform_remote_state`), portanto **não** são inputs manuais
+aqui. Isso exige que o os-management esteja em deploy no modo EKS (`USE_EKS=true`) e exponha esses
+outputs raiz: `private_subnet_ids`, `node_security_group_id`, `rds_jdbc_url`.
 
-The os-management pipeline maps `develop` to the homol environment and stores its state at **`homol/terraform.tfstate`**; it maps `main` to production at **`prod/terraform.tfstate`**. The CD workflow here passes the matching key via `TF_VAR_os_management_state_key`; for a manual `terraform apply`, set `os_management_state_key` in `terraform.tfvars` (default: `homol/terraform.tfstate`).
+O pipeline do os-management mapeia `develop` para o ambiente de homologação e guarda seu state em
+**`homol/terraform.tfstate`**; mapeia `main` para produção em **`prod/terraform.tfstate`**. O
+workflow de CD aqui passa a chave correspondente via `TF_VAR_os_management_state_key`; para um
+`terraform apply` manual, defina `os_management_state_key` no `terraform.tfvars` (padrão:
+`homol/terraform.tfstate`).
 
-The issuer Lambda attaches to the EKS **node security group**, which is the SG the RDS instance already allows on port 5432.
+A Lambda issuer se conecta ao **security group de nós** do EKS, que é o SG que o RDS já libera
+na porta 5432.
 
-### Required GitHub configuration (reused from os-management)
+### Configuração necessária no GitHub (reaproveitada do os-management)
 
-Repo **variables**: `TF_STATE_BUCKET`, `AWS_REGION`.
+**Variables** do repositório: `TF_STATE_BUCKET`, `AWS_REGION`.
 
-Repo **secrets**: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`.
+**Secrets** do repositório: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`.
 
-> `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `TF_STATE_BUCKET`, `AWS_REGION`, and the AWS keys use the **same names and values** as os-management — reuse them. Subnets, security group, and DB URL are not needed as secrets — they come from remote state. The backend URL (`ORIGIN_URL`) now lives in the **`os-management-gateway`** repo, not here.
+> `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `TF_STATE_BUCKET`, `AWS_REGION` e as chaves AWS usam
+> os **mesmos nomes e valores** do os-management — reaproveite-os. Subnets, security group e
+> URL do banco não são necessários como secrets — vêm do remote state. A URL do backend
+> (`ORIGIN_URL`) agora vive no repositório **`os-management-gateway`**, não aqui.
 
 ---
 
-## Observability
+## Observabilidade
 
-Both functions emit **one-line JSON logs** to CloudWatch (`level`, `event`, `requestId`, `function`, …).
-`requestId` is the Lambda request id and lets a single call be traced across the API Gateway
-access log → authorizer → issuer. CPF/CNPJ values are always masked (`529******25`).
+Ambas as funções emitem **logs JSON de uma linha** para o CloudWatch (`level`, `event`,
+`requestId`, `function`, …). O `requestId` é o id da requisição Lambda e permite rastrear uma
+única chamada desde o log de acesso do API Gateway → authorizer → issuer. Valores de CPF/CNPJ
+são sempre mascarados (`529******25`).
 
-The token authorizer returns an Allow policy scoped to the whole API stage (`…/<stage>/*/*`)
-rather than the single method ARN, so API Gateway can cache the authorizer result
-(`authorizer_result_ttl_in_seconds`) without denying every route after the first call.
+O token authorizer retorna uma política Allow válida para todo o stage da API (`…/<stage>/*/*`)
+em vez do ARN de um único método, para que o API Gateway possa cachear o resultado do authorizer
+(`authorizer_result_ttl_in_seconds`) sem negar todas as rotas após a primeira chamada.
 
-## Backend integration (required)
+## Integração com o Backend (obrigatória)
 
-A protected call only succeeds if **os-management** knows how to accept this token. The main
-app runs a filter that recognises the CPF token (subject = CPF/CNPJ, `clientId` claim, no
-`users` row), grants it `ROLE_CLIENT`, and resolves the client by document. Deploy a version
-of os-management that includes that change (`feature/cpf-auth-integration` or later) — see its
-`SecurityConfig` / `JwtFilter`.
+Uma chamada protegida só funciona se o **os-management** souber aceitar esse token. A aplicação
+principal roda um filtro que reconhece o token de CPF (subject = CPF/CNPJ, claim `clientId`,
+sem registro em `users`), concede `ROLE_CLIENT` e resolve o cliente pelo documento. Faça deploy
+de uma versão do os-management que inclua essa mudança (`feature/cpf-auth-integration` ou
+posterior) — ver `SecurityConfig` / `JwtFilter` naquele repositório.
 
-## Notes
+## Notas
 
-- Remember to add the **`soat-architecture`** user to this repository (Tech Challenge delivery requirement).
-- Secrets are managed in AWS Secrets Manager and injected as Lambda environment variables so the function code stays runtime-agnostic; fetching them at runtime via the AWS SDK is a straightforward future hardening.
-- `iss` / `aud` claims are not stamped yet: tokens are distinguished from staff tokens by the `clientId` claim. Adding `iss`/`aud` is a low-effort hardening if the platform ever gains a third token issuer.
+- Lembrar de adicionar o usuário **`soat-architecture`** a este repositório (requisito de
+  entrega do Tech Challenge).
+- Os segredos são gerenciados no AWS Secrets Manager e injetados como variáveis de ambiente da
+  Lambda, para que o código da função permaneça agnóstico de runtime; buscá-los em tempo de
+  execução via AWS SDK é um hardening futuro direto.
+- As claims `iss`/`aud` ainda não são gravadas: os tokens são distinguidos dos tokens de staff
+  pela claim `clientId`. Adicionar `iss`/`aud` é um hardening de baixo esforço caso a plataforma
+  algum dia ganhe um terceiro emissor de tokens.
